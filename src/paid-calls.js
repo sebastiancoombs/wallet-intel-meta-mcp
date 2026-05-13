@@ -80,7 +80,9 @@ export function paidCallsCapture({ service, priceByPath }) {
 // Mount a public GET endpoint so the snapshot script + dashboard can read
 // recent paid calls. Public-readable: data already on chain, plus we want
 // the snapshot generator (no shared secret) to fetch without auth setup.
-export function mountPaidCallsAdmin(app, { route = "/v1/admin/paid_calls" } = {}) {
+export function mountPaidCallsAdmin(app, { route = "/v1/admin/paid_calls", service = null } = {}) {
+  const scopedService = service;
+
   app.get(route, async (c) => {
     const db = c.env?.PAID_CALLS_DB;
     if (!db) return c.json({ error: "no_db_binding" }, 500);
@@ -91,12 +93,13 @@ export function mountPaidCallsAdmin(app, { route = "/v1/admin/paid_calls" } = {}
     let sql =
       `SELECT ts, iso_ts, service, endpoint, status_code, ok, atomic_amount,
               network, tx_hash, payer_addr, success
-         FROM paid_calls`;
-    const binds = [];
+         FROM paid_calls
+        WHERE service = ?`;
+    const binds = [scopedService];
     if (sinceParam) {
       const since = parseInt(sinceParam, 10);
       if (Number.isFinite(since)) {
-        sql += ` WHERE ts >= ?`;
+        sql += ` AND ts >= ?`;
         binds.push(since);
       }
     }
@@ -104,10 +107,10 @@ export function mountPaidCallsAdmin(app, { route = "/v1/admin/paid_calls" } = {}
     binds.push(limit);
 
     try {
-      const stmt = binds.length === 0 ? db.prepare(sql) : db.prepare(sql).bind(...binds);
-      const { results } = await stmt.all();
+      const { results } = await db.prepare(sql).bind(...binds).all();
       return c.json({
         ok: true,
+        service: scopedService,
         count: results.length,
         rows: results,
       });
@@ -132,13 +135,13 @@ export function mountPaidCallsAdmin(app, { route = "/v1/admin/paid_calls" } = {}
                   MIN(ts)              AS first_ts,
                   MAX(ts)              AS last_ts
              FROM paid_calls
-            WHERE ts >= ?
+            WHERE ts >= ? AND service = ?
             GROUP BY service, endpoint
             ORDER BY hits DESC`
         )
-        .bind(since)
+        .bind(since, scopedService)
         .all();
-      return c.json({ ok: true, since_unix: since, rows: results });
+      return c.json({ ok: true, service: scopedService, since_unix: since, rows: results });
     } catch (err) {
       return c.json({ ok: false, error: String(err?.message || err) }, 500);
     }

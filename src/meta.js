@@ -70,7 +70,7 @@ function isEvmAddress(s) {
   return typeof s === "string" && /^0x[0-9a-fA-F]{40}$/.test(s);
 }
 
-async function fetchAxis(upstream, payload, timeoutMs) {
+async function fetchAxis(upstream, payload, timeoutMs, paymentHeader) {
   const start = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -78,7 +78,7 @@ async function fetchAxis(upstream, payload, timeoutMs) {
   try {
     const r = await fetch(upstream.url, {
       method: "POST",
-      headers: { "content-type": "application/json", "user-agent": "wallet-intel-meta-mcp/0.1.0" },
+      headers: { "content-type": "application/json", ...(paymentHeader ? { "x-payment": paymentHeader } : {}), "user-agent": "wallet-intel-meta-mcp/0.1.0" },
       body: JSON.stringify(upstream.body(payload)),
       signal: controller.signal,
     });
@@ -112,7 +112,7 @@ async function fetchAxis(upstream, payload, timeoutMs) {
   };
 }
 
-export async function buildDossier({ address, chain, chains, timeoutMs }) {
+export async function buildDossier({ address, chain, chains, timeoutMs, paymentHeader }) {
   if (!isEvmAddress(address)) {
     const err = new Error("address must be a 0x-prefixed 20-byte EVM address");
     err.status = 400;
@@ -121,7 +121,7 @@ export async function buildDossier({ address, chain, chains, timeoutMs }) {
   const t = Number(timeoutMs) || 8000;
   const payload = { address, chain, chains };
   const t0 = Date.now();
-  const results = await Promise.allSettled(UPSTREAMS.map((u) => fetchAxis(u, payload, t)));
+  const results = await Promise.allSettled(UPSTREAMS.map((u) => fetchAxis(u, payload, t, paymentHeader)));
   const axes = {};
   let okCount = 0;
   for (const r of results) {

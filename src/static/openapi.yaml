@@ -11,6 +11,19 @@ info:
     Base via x402. No signup, no API key.
 servers:
   - url: https://wallet-intel-meta-mcp.mtree.workers.dev
+x-pricing:
+  - path: /v1/wallet/dossier
+    method: POST
+    price: $0.75
+    amount: "0.75"
+    asset: USDC
+    network: base
+  - path: /v1/wallet/dossier_summary
+    method: POST
+    price: $0.50
+    amount: "0.50"
+    asset: USDC
+    network: base
 paths:
   /healthz:
     get:
